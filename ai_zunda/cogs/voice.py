@@ -87,14 +87,13 @@ class VoiceCog(commands.Cog):
             await channel.connect(cls=voice_recv.VoiceRecvClient)
             log.info("VC 参加: %s (by %s)", channel.name, ctx.author)
             await ctx.send("合流したのだ。名前を呼ぶから覚悟するのだ。")
+            asyncio.create_task(self._listen_loop(ctx))
 
-    @commands.command(name="start")
-    async def start(self, ctx: commands.Context):
+    async def _listen_loop(self, ctx: commands.Context):
         if self.is_listening:
             return
         self.is_listening = True
         log.info("聴取開始 (by %s)", ctx.author)
-        await ctx.send("聞き取りを開始するのだ！")
 
         while self.is_listening:
             if not ctx.voice_client:
@@ -142,6 +141,13 @@ class VoiceCog(commands.Cog):
                     except OSError:
                         pass
             await asyncio.sleep(0.1)
+
+    @commands.command(name="start")
+    async def start(self, ctx: commands.Context):
+        if self.is_listening:
+            return
+        await ctx.send("聞き取りを開始するのだ！")
+        await self._listen_loop(ctx)
 
     @commands.command(name="stop")
     async def stop(self, ctx: commands.Context):

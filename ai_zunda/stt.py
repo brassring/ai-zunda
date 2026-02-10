@@ -2,13 +2,16 @@ import logging
 import os
 from pathlib import Path
 
+# nvidia cublas DLL を PATH に追加 — ctranslate2 import より前に実行
+try:
+    import nvidia.cublas as _cublas
+    _bin = str(Path(_cublas.__path__[0]) / "bin")
+    os.environ["PATH"] = _bin + os.pathsep + os.environ["PATH"]
+except ImportError:
+    pass
+
 import ctranslate2
 from faster_whisper import WhisperModel
-
-# nvidia DLL を検索パスに追加 (cublas64_12.dll 等)
-_nvidia_dir = Path(ctranslate2.__file__).resolve().parents[1] / "nvidia"
-for _dll_dir in _nvidia_dir.glob("*/bin"):
-    os.add_dll_directory(str(_dll_dir))
 
 log = logging.getLogger(__name__)
 
