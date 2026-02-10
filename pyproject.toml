@@ -1,0 +1,27 @@
+[project]
+name = "ai-zunda"
+version = "0.1.0"
+description = "Discord voice chat bot with Zundamon personality"
+requires-python = ">=3.12"
+dependencies = [
+    "discord.py[voice]",
+    "discord-ext-voice-recv",
+    "faster-whisper",
+    "ollama",
+    "aiohttp",
+    "aiosqlite",
+    "python-dotenv",
+]
+
+[project.optional-dependencies]
+gpu = [
+    "nvidia-cublas-cu12",
+    "nvidia-cudnn-cu12",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.scripts]
+ai-zunda = "ai_zunda.__main__:main"
