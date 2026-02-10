@@ -1,7 +1,7 @@
-import io
 import logging
 import os
 import asyncio
+import tempfile
 
 import discord
 from discord.ext import commands, voice_recv
@@ -14,17 +14,46 @@ from ..db import save_log
 log = logging.getLogger(__name__)
 
 
+class _TrackingSink(voice_recv.AudioSink):
+    """WaveSink をラップし、発話者を記録するシンク。"""
+
+    def __init__(self, filename: str):
+        super().__init__()
+        self._inner = voice_recv.WaveSink(filename)
+        self.speakers: dict[int, discord.Member] = {}
+
+    def write(self, user, data):
+        if user is not None:
+            self.speakers[user.id] = user
+        self._inner.write(user, data)
+
+    def wants_opus(self) -> bool:
+        return self._inner.wants_opus()
+
+    def cleanup(self):
+        self._inner.cleanup()
+
+
 class VoiceCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.is_listening = False
 
     async def _play_audio(self, ctx: commands.Context, audio_data: bytes):
-        if ctx.voice_client and ctx.voice_client.is_connected():
-            buf = io.BytesIO(audio_data)
-            ctx.voice_client.play(discord.FFmpegPCMAudio(buf, pipe=True))
+        if not (ctx.voice_client and ctx.voice_client.is_connected()):
+            return
+        tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+        try:
+            tmp.write(audio_data)
+            tmp.close()
+            ctx.voice_client.play(discord.FFmpegPCMAudio(tmp.name))
             while ctx.voice_client.is_playing():
                 await asyncio.sleep(0.05)
+        finally:
+            try:
+                os.remove(tmp.name)
+            except OSError:
+                pass
 
     async def _stream_ai_and_speak(
         self, ctx: commands.Context, user_text: str, user_name: str
@@ -58,7 +87,8 @@ class VoiceCog(commands.Cog):
 
         try:
             async for sentence in stream_sentences(
-                self.bot.ollama_client, user_text, user_name
+                self.bot.llm_client, user_text, user_name,
+                backend=self.bot.llm_backend,
             ):
                 sentences.append(sentence)
                 task = asyncio.create_task(
@@ -101,7 +131,7 @@ class VoiceCog(commands.Cog):
                 break
 
             filename = "temp_voice.wav"
-            sink = voice_recv.WaveSink(filename)
+            sink = _TrackingSink(filename)
 
             try:
                 ctx.voice_client.listen(sink)
@@ -111,13 +141,10 @@ class VoiceCog(commands.Cog):
                 user_name = "キミ"
                 user_id_val = 0
 
-                if hasattr(ctx.voice_client, "voice_reader"):
-                    ids = ctx.voice_client.voice_reader.get_speaking_users()
-                    if ids:
-                        user_id_val = ids[0]
-                        user = self.bot.get_user(user_id_val)
-                        if user:
-                            user_name = user.display_name
+                if sink.speakers:
+                    member = next(iter(sink.speakers.values()))
+                    user_name = member.display_name
+                    user_id_val = member.id
 
                 if os.path.exists(filename) and os.path.getsize(filename) > 1000:
                     loop = asyncio.get_running_loop()

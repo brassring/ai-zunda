@@ -8,6 +8,7 @@ dependencies = [
     "discord-ext-voice-recv",
     "faster-whisper",
     "ollama",
+
     "aiohttp",
     "aiosqlite",
     "python-dotenv",

@@ -1,3 +1,4 @@
+import argparse
 import logging
 
 import aiohttp
@@ -14,12 +15,27 @@ log = logging.getLogger(__name__)
 def main():
     setup_logging()
 
+    parser = argparse.ArgumentParser(description="AI Zundamon Discord Bot")
+    parser.add_argument(
+        "--llm",
+        choices=["ollama", "claude"],
+        default="ollama",
+        help="LLM backend to use (default: ollama)",
+    )
+    args = parser.parse_args()
+
     intents = discord.Intents.all()
     bot = commands.Bot(command_prefix="!", intents=intents)
 
     async def _setup_hook():
         bot.http_session = aiohttp.ClientSession()
-        bot.ollama_client = OllamaClient()
+        bot.llm_backend = args.llm
+        if args.llm == "claude":
+            bot.llm_client = None
+            log.info("LLM バックエンド: Claude (CLI)")
+        else:
+            bot.llm_client = OllamaClient()
+            log.info("LLM バックエンド: Ollama")
         await init_db()
         await bot.load_extension("ai_zunda.cogs.voice")
         log.info("セットアップ完了")
