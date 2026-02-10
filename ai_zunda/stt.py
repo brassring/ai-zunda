@@ -1,7 +1,14 @@
 import logging
+import os
+from pathlib import Path
 
 import ctranslate2
 from faster_whisper import WhisperModel
+
+# nvidia DLL を検索パスに追加 (cublas64_12.dll 等)
+_nvidia_dir = Path(ctranslate2.__file__).resolve().parents[1] / "nvidia"
+for _dll_dir in _nvidia_dir.glob("*/bin"):
+    os.add_dll_directory(str(_dll_dir))
 
 log = logging.getLogger(__name__)
 
